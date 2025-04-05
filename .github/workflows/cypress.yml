@@ -1,34 +1,39 @@
-name: Cypress Tests
+name: 🚀 Cypress Tests
 
 on:
   push:
     branches:
       - main
   pull_request:
-    branches:
-      - main
 
 jobs:
   cypress-run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Node.js
+      - name: 🟢 Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 18
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: npm ci
 
-      - name: Run Cypress tests
-        run: npm run test
+      - name: 🧪 Run Cypress tests and save logs
+        run: |
+          mkdir -p cypress/logs
+          npx cypress run --env allure=true | tee cypress/logs/test-run.log
 
-      - name: Upload screenshots to S3
-        run: npm run upload-results
+      - name: ☁️ Upload logs & screenshots to AWS S3
+        run: |
+          aws s3 cp cypress/screenshots s3://my-cypress-results-bucket/screenshots --recursive || echo 'No screenshots to upload'
+          aws s3 cp cypress/logs s3://my-cypress-results-bucket/logs --recursive || echo 'No logs to upload'
 
-      - name: Send Slack notification
-        run: npm run send-notification
+      - name: 📩 Send Slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: node sendNotification.js
+
