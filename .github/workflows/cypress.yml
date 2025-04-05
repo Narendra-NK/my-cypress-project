@@ -18,7 +18,7 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_PUBLIC_IP }} >> ~/.ssh/known_hosts
-EOF
+        EOF
 - name: 🚀 Run Cypress on EC2
   run: |
     ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
