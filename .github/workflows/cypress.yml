@@ -25,8 +25,8 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          echo "EC2 Host: ${{ secrets.EC2_HOST }}"  # Debug line
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          echo "EC2 Host: $EC2_HOST"
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
 
       - name: 🚀 SSH into EC2 and run Cypress tests
         run: |
