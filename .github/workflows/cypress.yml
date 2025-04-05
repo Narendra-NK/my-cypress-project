@@ -9,44 +9,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout code
+      - name: 📥 Checkout repo (for secrets only)
         uses: actions/checkout@v3
 
-      - name: 🔐 Set up SSH key
+      - name: 🔐 Setup SSH access to EC2
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_PUBLIC_IP }} >> ~/.ssh/known_hosts
 
-      - name: 🚀 SSH into EC2 and Run Cypress Tests
+      - name: 🚀 Run Cypress on EC2
         run: |
           ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
-            echo "🔁 Syncing latest code..."
+            set -e
             cd ~/my-cypress-project
+
+            echo "🧹 Cleaning repo"
             git reset --hard
             git clean -fd
             git pull origin main
-            echo "📦 Installing dependencies..."
+
+            echo "📦 Installing dependencies"
             npm ci
-            echo "🧪 Running Cypress tests..."
+
+            echo "🧪 Running Cypress tests"
             mkdir -p cypress/logs
             npx cypress run --env allure=true | tee cypress/logs/test-run.log
-            echo "✅ Cypress tests completed."
           EOF
 
-      - name: ☁️ Upload Logs & Screenshots to S3
+      - name: ☁️ Upload Cypress artifacts to S3
         run: |
           ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
-            echo "☁️ Uploading test artifacts to S3..."
+            echo "☁️ Uploading screenshots (if any)..."
             aws s3 cp cypress/screenshots s3://my-cypress-results-bucket/screenshots --recursive || echo "No screenshots"
+
+            echo "☁️ Uploading logs..."
             aws s3 cp cypress/logs s3://my-cypress-results-bucket/logs --recursive || echo "No logs"
           EOF
 
       - name: 📬 Send Slack Notification
         run: |
           ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
-            echo "📨 Sending Slack notification..."
-            export SLACK_WEBHOOK_URL="${{ secrets.SLACK_WEBHOOK_URL }}"
-            node sendNotification.js
+            if [ -f sendNotification.js ]; then
+              echo "📬 Sending Slack notification..."
+              node sendNotification.js
+            else
+              echo "⚠️ sendNotification.js not found!"
+            fi
           EOF
