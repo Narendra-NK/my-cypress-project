@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "cy:split": "cypress-split run"
+    "cy:split": "npx cypress-split --ci-build-id $CI_BUILD_ID --split $TOTAL_NODES --index $NODE_INDEX"
   },
   "keywords": [],
   "author": "",

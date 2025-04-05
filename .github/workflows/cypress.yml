@@ -36,9 +36,12 @@ jobs:
             echo "Installing dependencies..."
             npm ci
 
-            echo "Running Cypress tests (parallel group $NODE_INDEX)..."
+            echo "Installing cypress-split..."
+            npm install --save-dev cypress-split
+
+            echo "Running Cypress tests (parallel group)..."
             mkdir -p cypress/logs
-            npm run cy:split
+            npm run cy:split | tee cypress/logs/test-run.log
 
             echo "Uploading screenshots (if any)..."
             if [ -d "cypress/screenshots" ]; then
