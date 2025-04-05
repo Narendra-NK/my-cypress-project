@@ -36,9 +36,9 @@ jobs:
             echo "Installing dependencies..."
             npm ci
 
-            echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
+            echo "Running Cypress tests (parallel group $NODE_INDEX)..."
             mkdir -p cypress/logs
-            npx cypress-split --group ${{ matrix.group }} --ci-build-id "\$(date +%s)" | tee cypress/logs/test-run-group-${{ matrix.group }}.log
+            npm run cy:split
 
             echo "Uploading screenshots (if any)..."
             if [ -d "cypress/screenshots" ]; then
