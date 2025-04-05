@@ -1,55 +1,57 @@
-name: 🚀 Cypress Tests
+name: 🚀 Cypress Tests on EC2
 
 on:
   push:
     branches:
       - main
   pull_request:
-  workflow_dispatch:  # ✅ This enables the "Run workflow" button
+  workflow_dispatch:
 
 jobs:
-  cypress-run:
+  run-cypress-on-ec2:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Checkout code
+      - name: 📥 Checkout repo (for key and SSH config)
         uses: actions/checkout@v3
 
-      - name: 🟢 Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
-      - name: 📦 Install dependencies
-        run: npm ci
-
-      - name: 🧪 Run Cypress tests and save logs
+      - name: 🔐 Setup SSH key
         run: |
-          mkdir -p cypress/logs
-          npx cypress run | tee cypress/logs/test-run.log
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: ☁️ Upload screenshots (if any)
+      - name: 🚀 SSH into EC2 and run Cypress tests
         run: |
-          if [ -d "cypress/screenshots" ]; then
-            aws s3 cp cypress/screenshots s3://my-cypress-results-bucket/screenshots --recursive
-          else
-            echo "No screenshots"
-          fi
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+            cd ~/my-cypress-project
 
-      - name: ☁️ Upload logs
-        run: |
-          if [ -d "cypress/logs" ]; then
-            aws s3 cp cypress/logs s3://my-cypress-results-bucket/logs --recursive
-          else
-            echo "No logs"
-          fi
+            echo "📦 Installing dependencies..."
+            npm ci
 
-      - name: 📨 Send Slack notification
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          if [ -f "sendNotification.js" ]; then
-            node sendNotification.js
-          else
-            echo "⚠️ sendNotification.js not found!"
-          fi
+            echo "🧪 Running Cypress tests..."
+            mkdir -p cypress/logs
+            npx cypress run | tee cypress/logs/test-run.log
+
+            echo "☁️ Uploading screenshots (if any)..."
+            if [ -d "cypress/screenshots" ]; then
+              aws s3 cp cypress/screenshots s3://my-cypress-results-bucket/screenshots --recursive
+            else
+              echo "No screenshots"
+            fi
+
+            echo "☁️ Uploading logs..."
+            if [ -d "cypress/logs" ]; then
+              aws s3 cp cypress/logs s3://my-cypress-results-bucket/logs --recursive
+            else
+              echo "No logs"
+            fi
+
+            echo "📨 Sending Slack notification..."
+            if [ -f "sendNotification.js" ]; then
+              SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }} node sendNotification.js
+            else
+              echo "⚠️ sendNotification.js not found!"
+            fi
+          EOF
