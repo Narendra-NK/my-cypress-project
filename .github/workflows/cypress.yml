@@ -19,24 +19,25 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_PUBLIC_IP }} >> ~/.ssh/known_hosts
 
-      - name: 🚀 Run Cypress on EC2
-        run: |
-          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
-            set -e
-            cd ~/my-cypress-project
+- name: 🚀 Run Cypress on EC2
+  run: |
+    ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
+      set -e
+      cd ~/my-cypress-project
 
-            echo "🧹 Cleaning repo"
-            git reset --hard
-            git clean -fd
-            git pull origin main
+      echo "🧹 Resetting Git repo"
+      git reset --hard
+      git clean -fd
+      git pull origin main
 
-            echo "📦 Installing dependencies"
-            npm ci
+      echo "📦 Installing dependencies"
+      npm ci
 
-            echo "🧪 Running Cypress tests"
-            mkdir -p cypress/logs
-            npx cypress run --env allure=true | tee cypress/logs/test-run.log
-          EOF
+      echo "🧪 Running Cypress tests"
+      mkdir -p cypress/logs
+      npx cypress run --env allure=true | tee cypress/logs/test-run.log
+      echo "✅ Cypress tests completed"
+    EOF
 
       - name: ☁️ Upload Cypress artifacts to S3
         run: |
