@@ -10,6 +10,9 @@ on:
 jobs:
   run-cypress-on-ec2:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        group: [1, 2] # Adjust the number of parallel groups here
 
     steps:
       - name: Checkout repo (for key and SSH config)
@@ -27,15 +30,15 @@ jobs:
 
       - name: SSH into EC2 and run Cypress tests
         run: |
-          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << EOF
             cd ~/my-cypress-project
 
             echo "Installing dependencies..."
             npm ci
 
-            echo "Running Cypress tests..."
+            echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
             mkdir -p cypress/logs
-            npx cypress run | tee cypress/logs/test-run.log
+            npx cypress-split --group ${{ matrix.group }} --ci-build-id "\$(date +%s)" | tee cypress/logs/test-run-group-${{ matrix.group }}.log
 
             echo "Uploading screenshots (if any)..."
             if [ -d "cypress/screenshots" ]; then
@@ -58,4 +61,3 @@ jobs:
               echo "sendNotification.js not found!"
             fi
           EOF
-
