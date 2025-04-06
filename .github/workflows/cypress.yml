@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        group: [1, 2] # Adjust the number of parallel groups here
+        group: [1, 2]
 
     steps:
       - name: Checkout repo (for key and SSH config)
@@ -28,7 +28,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: SSH into EC2 and run Cypress tests
+      - name: SSH into EC2 and run Cypress tests (group ${{ matrix.group }})
         run: |
           ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << EOF
             cd ~/my-cypress-project
@@ -39,9 +39,17 @@ jobs:
             echo "Installing cypress-split..."
             npm install --save-dev cypress-split
 
-            echo "Running Cypress tests (parallel group)..."
+            echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
             mkdir -p cypress/logs
-            npm run cy:split | tee cypress/logs/test-run.log
+            CI_BUILD_ID=$GITHUB_RUN_ID TOTAL_NODES=2 NODE_INDEX=${{ matrix.group }} \
+              npm run cy:split | tee cypress/logs/test-run-group-${{ matrix.group }}.log
+
+            echo "Uploading logs..."
+            if [ -d "cypress/logs" ]; then
+              aws s3 cp cypress/logs/test-run-group-${{ matrix.group }}.log s3://my-cypress-results-bucket/logs/
+            else
+              echo "No logs"
+            fi
 
             echo "Uploading screenshots (if any)..."
             if [ -d "cypress/screenshots" ]; then
@@ -49,13 +57,34 @@ jobs:
             else
               echo "No screenshots"
             fi
+          EOF
 
-            echo "Uploading logs..."
-            if [ -d "cypress/logs" ]; then
-              aws s3 cp cypress/logs s3://my-cypress-results-bucket/logs --recursive
-            else
-              echo "No logs"
-            fi
+  post-processing:
+    needs: run-cypress-on-ec2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: SSH into EC2 and merge logs + send Slack notification
+        run: |
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << EOF
+            cd ~/my-cypress-project
+
+            echo "Merging all group logs..."
+            mkdir -p cypress/logs
+            cat cypress/logs/test-run-group-*.log > cypress/logs/test-run.log || echo "No logs found"
+
+            echo "Uploading final merged log..."
+            aws s3 cp cypress/logs/test-run.log s3://my-cypress-results-bucket/logs/test-run.log || echo "Upload failed"
 
             echo "Sending Slack notification..."
             if [ -f "sendNotification.js" ]; then
