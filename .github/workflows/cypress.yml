@@ -15,77 +15,80 @@ jobs:
         group: [1, 2]
 
     steps:
-      - name: Checkout repo (for key and SSH config)
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Debug EC2_HOST
-        run: 'echo "EC2 Host: ${{ secrets.EC2_HOST }}"'
+      - name: Debug EC2 Host
+        run: echo "EC2 Host: ${{ secrets.EC2_HOST }}"
 
-      - name: Setup SSH key
+      - name: Setup SSH Key for EC2
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-- name: SSH into EC2 and run Cypress tests (group ${{ matrix.group }})
-  run: |
-    ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << EOF
-      cd ~/my-cypress-project
+      - name: SSH into EC2 and Run Cypress Tests (Group ${{ matrix.group }})
+        run: |
+          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << EOF
+            set -e # Exit immediately if a command exits with a non-zero status
 
-      echo "Installing dependencies..."
-      npm ci
+            cd ~/my-cypress-project
 
-      echo "Installing cypress-split..."
-      npm install --save-dev cypress-split
+            echo "Installing dependencies..."
+            npm ci
 
-      echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
-      mkdir -p cypress/logs
-      npx cypress-split --splits=2 --group=${{ matrix.group }} -- cypress run \
-        | tee cypress/logs/test-run-group-${{ matrix.group }}.log
+            echo "Installing cypress-split..."
+            npm install --save-dev cypress-split
 
-      echo "Uploading logs..."
-      if [ -f "cypress/logs/test-run-group-${{ matrix.group }}.log" ]; then
-        aws s3 cp cypress/logs/test-run-group-${{ matrix.group }}.log s3://my-cypress-results-bucket/logs/
-      else
-        echo "Log file not found!"
-      fi
+            echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
+            mkdir -p cypress/logs
+            npx cypress-split --splits=2 --group=${{ matrix.group }} -- cypress run \
+              | tee cypress/logs/test-run-group-${{ matrix.group }}.log
 
-      echo "Uploading screenshots (if any)..."
-      if [ -d "cypress/screenshots" ]; then
-        aws s3 cp cypress/screenshots s3://my-cypress-results-bucket/screenshots --recursive
-      else
-        echo "No screenshots"
-      fi
-    EOF
-      
+            echo "Uploading logs for group ${{ matrix.group }}..."
+            if [ -f "cypress/logs/test-run-group-${{ matrix.group }}.log" ]; then
+              aws s3 cp cypress/logs/test-run-group-${{ matrix.group }}.log s3://my-cypress-results-bucket/logs/
+            else
+              echo "Log file for group ${{ matrix.group }} not found!"
+            fi
+
+            echo "Uploading screenshots for group ${{ matrix.group }} (if any)..."
+            if [ -d "cypress/screenshots" ]; then
+              aws s3 cp cypress/screenshots s3://my-cypress-results-bucket/screenshots --recursive
+            else
+              echo "No screenshots for group ${{ matrix.group }}"
+            fi
+          EOF
 
   post-processing:
     needs: run-cypress-on-ec2
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
-      - name: Setup SSH key
+      - name: Setup SSH Key for EC2
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: SSH into EC2 and merge logs + send Slack notification
+      - name: SSH into EC2 and Merge Logs + Send Slack Notification
         run: |
           ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << EOF
+            set -e # Exit immediately if a command exits with a non-zero status
+
             cd ~/my-cypress-project
 
             echo "Merging all group logs..."
             mkdir -p cypress/logs
-            cat cypress/logs/test-run-group-*.log > cypress/logs/test-run.log || echo "No logs found"
+            cat cypress/logs/test-run-group-*.log > cypress/logs/test-run.log || echo "No logs found to merge"
 
             echo "Uploading final merged log..."
-            aws s3 cp cypress/logs/test-run.log s3://my-cypress-results-bucket/logs/test-run.log || echo "Upload failed"
+            aws s3 cp cypress/logs/test-run.log s3://my-cypress-results-bucket/logs/test-run.log || echo "Upload of merged log failed"
 
             echo "Sending Slack notification..."
             if [ -f "sendNotification.js" ]; then
