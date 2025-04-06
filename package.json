@@ -4,15 +4,17 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "cy:split": "npx cypress-split --splits=2 --group=${CYPRESS_SPLIT_GROUP:-1} -- cypress run"
-  },
+  "cypress:open": "cypress open",
+  "cypress:run": "cypress run",
+  "split:run-group1": "cypress run --env SPLIT=2,SPLIT_INDEX=0",
+  "split:run-group2": "cypress run --env SPLIT=2,SPLIT_INDEX=1"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "cypress": "^14.2.0",
-    "cypress-split": "^1.24.14"
+    "cypress-split": "^1.20.0"
   },
   "dependencies": {
     "axios": "^1.8.4"

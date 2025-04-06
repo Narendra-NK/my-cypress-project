@@ -28,36 +28,37 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: SSH into EC2 and run Cypress tests (group ${{ matrix.group }})
-        run: |
-          ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << EOF
-            cd ~/my-cypress-project
+- name: SSH into EC2 and run Cypress tests (group ${{ matrix.group }})
+  run: |
+    ssh -i ~/.ssh/id_rsa ubuntu@${{ secrets.EC2_HOST }} << EOF
+      cd ~/my-cypress-project
 
-            echo "Installing dependencies..."
-            npm ci
+      echo "Installing dependencies..."
+      npm ci
 
-            echo "Installing cypress-split..."
-            npm install --save-dev cypress-split
+      echo "Installing cypress-split..."
+      npm install --save-dev cypress-split
 
-            echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
-            mkdir -p cypress/logs
-            npx cypress-split --splits=2 --group=${{ matrix.group }} -- npx cypress run
+      echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
+      mkdir -p cypress/logs
+      npx cypress-split --splits=2 --group=${{ matrix.group }} -- cypress run \
+        | tee cypress/logs/test-run-group-${{ matrix.group }}.log
 
+      echo "Uploading logs..."
+      if [ -f "cypress/logs/test-run-group-${{ matrix.group }}.log" ]; then
+        aws s3 cp cypress/logs/test-run-group-${{ matrix.group }}.log s3://my-cypress-results-bucket/logs/
+      else
+        echo "Log file not found!"
+      fi
 
-            echo "Uploading logs..."
-            if [ -f "cypress/logs/test-run-group-${{ matrix.group }}.log" ]; then
-              aws s3 cp cypress/logs/test-run-group-${{ matrix.group }}.log s3://my-cypress-results-bucket/logs/
-            else
-              echo "Log file not found!"
-            fi
-
-            echo "Uploading screenshots (if any)..."
-            if [ -d "cypress/screenshots" ]; then
-              aws s3 cp cypress/screenshots s3://my-cypress-results-bucket/screenshots --recursive
-            else
-              echo "No screenshots"
-            fi
-          EOF
+      echo "Uploading screenshots (if any)..."
+      if [ -d "cypress/screenshots" ]; then
+        aws s3 cp cypress/screenshots s3://my-cypress-results-bucket/screenshots --recursive
+      else
+        echo "No screenshots"
+      fi
+    EOF
+      
 
   post-processing:
     needs: run-cypress-on-ec2
