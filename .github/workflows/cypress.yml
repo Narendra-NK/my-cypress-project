@@ -41,7 +41,8 @@ jobs:
 
             echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
             mkdir -p cypress/logs
-            CYPRESS_SPLIT_GROUP=${{ matrix.group }} npm run cy:split | tee cypress/logs/test-run-group-${{ matrix.group }}.log
+            npx cypress-split --splits=2 --group=${{ matrix.group }} -- cypress run | tee cypress/logs/test-run-group-${{ matrix.group }}.log
+
 
             echo "Uploading logs..."
             if [ -f "cypress/logs/test-run-group-${{ matrix.group }}.log" ]; then
