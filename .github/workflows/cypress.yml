@@ -1,4 +1,4 @@
-name: "Cypress Tests on EC2"
+name: Cypress Tests on EC2
 
 on:
   push:
@@ -41,14 +41,13 @@ jobs:
 
             echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
             mkdir -p cypress/logs
-            CI_BUILD_ID=$GITHUB_RUN_ID TOTAL_NODES=2 NODE_INDEX=${{ matrix.group }} \
-              npm run cy:split | tee cypress/logs/test-run-group-${{ matrix.group }}.log
+            CYPRESS_SPLIT_GROUP=${{ matrix.group }} npm run cy:split | tee cypress/logs/test-run-group-${{ matrix.group }}.log
 
             echo "Uploading logs..."
-            if [ -d "cypress/logs" ]; then
+            if [ -f "cypress/logs/test-run-group-${{ matrix.group }}.log" ]; then
               aws s3 cp cypress/logs/test-run-group-${{ matrix.group }}.log s3://my-cypress-results-bucket/logs/
             else
-              echo "No logs"
+              echo "Log file not found!"
             fi
 
             echo "Uploading screenshots (if any)..."
