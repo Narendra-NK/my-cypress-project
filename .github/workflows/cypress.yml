@@ -41,7 +41,7 @@ jobs:
 
             echo "Running Cypress tests (parallel group ${{ matrix.group }})..."
             mkdir -p cypress/logs
-            npx cypress-split --splits=2 --group=${{ matrix.group }} -- cypress run | tee cypress/logs/test-run-group-${{ matrix.group }}.log
+            npx cypress-split --splits=2 --group=${{ matrix.group }} -- npx cypress run
 
 
             echo "Uploading logs..."
